@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nightly build · shipped while you slept</title>
+  <meta name="description" content="Premium merch for people who build. Tees, hoodies, mugs and tumblers printed on demand. A Courtright Collective brand.">
+  <link rel="canonical" href="https://nightlybuild.courtrightco.com/">
+  <meta name="theme-color" content="#0b0d10">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="nightly build">
+  <meta property="og:title" content="nightly build · shipped while you slept">
+  <meta property="og:description" content="Premium merch for people who build. Printed on demand.">
+  <meta property="og:url" content="https://nightlybuild.courtrightco.com/">
+  <meta property="og:image" content="https://nightlybuild.courtrightco.com/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="nightly build · shipped while you slept">
+  <meta name="twitter:description" content="Premium merch for people who build. Printed on demand.">
+  <meta name="twitter:image" content="https://nightlybuild.courtrightco.com/img/og.png">
+
+  <!-- Fonts: JetBrains Mono (anchor typeface) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+
+  <!-- Critical inline CSS to paint on-brand before the sheet loads -->
+  <style>
+    :root{--bg:#0b0d10;--text:#edebe4;--green:#3ccf5e}
+    html,body{margin:0;background:#0b0d10;color:#edebe4;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+    .site-header{height:58px;border-bottom:1px solid #1e242c}
+  </style>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="wordmark" href="/">nightly build<span class="cursor" aria-hidden="true"></span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/shop">Shop</a>
+        <a href="/about">About</a>
+      </nav>
+      <a class="cart-btn" href="/cart" data-open-cart aria-label="Open cart">
+        cart <span class="cart-count" data-cart-count data-empty="true">0</span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <span class="moon" aria-hidden="true"></span>
+        <p class="eyebrow">a courtright collective brand</p>
+        <h1 class="wordmark">nightly build<span class="cursor" aria-hidden="true"></span></h1>
+        <p class="hero-pitch">Shipped while you slept. Premium merch for the people who build.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="/shop">Shop the drop</a>
+          <a class="btn btn-ghost" href="/about">What is this?</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Featured</h2>
+          <a href="/shop">All products →</a>
+        </div>
+        <div class="grid" data-featured></div>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="section-head">
+          <h2>The collection</h2>
+        </div>
+        <div class="grid" data-grid></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="wordmark" href="/">nightly build<span class="cursor" aria-hidden="true"></span></a>
+          <p class="footer-fine">Shipped while you slept.<br>A Courtright Collective brand.</p>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="/shop">Shop</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+        </nav>
+      </div>
+      <p class="footer-fine">© <span data-year>2026</span> Courtright Collective. Printed on demand. Built at night.</p>
+    </div>
+  </footer>
+
+  <script src="/js/app.js" defer></script>
+  <script src="/js/render.js" defer></script>
+  <script src="/js/home.js" defer></script>
+  <script>document.addEventListener("DOMContentLoaded",function(){var y=document.querySelector("[data-year]");if(y)y.textContent=new Date().getFullYear();});</script>
+</body>
+</html>

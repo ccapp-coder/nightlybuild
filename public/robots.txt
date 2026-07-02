@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /cart
+Disallow: /success
+Disallow: /api/
+
+Sitemap: https://nightlybuild.courtrightco.com/sitemap.xml
