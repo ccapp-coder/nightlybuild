@@ -1,0 +1,18 @@
+# Copy to .dev.vars for local `wrangler dev`. NEVER commit .dev.vars.
+# In production these are set as Worker secrets (see README):
+#   wrangler secret put STRIPE_SECRET_KEY
+#   wrangler secret put STRIPE_WEBHOOK_SECRET
+#   wrangler secret put PRINTIFY_API_TOKEN
+
+# --- Stripe (use TEST-mode keys while building) ---
+STRIPE_SECRET_KEY="sk_test_xxx"
+STRIPE_WEBHOOK_SECRET="whsec_xxx"
+
+# --- Printify ---
+PRINTIFY_API_TOKEN="your_printify_personal_access_token"
+
+# The following are non-secret and normally live in [vars] in wrangler.toml.
+# Repeat them here so `wrangler dev` has them locally if you override:
+PRINTIFY_SHOP_ID="28049090"
+STRIPE_PUBLISHABLE_KEY="pk_test_xxx"
+SITE_URL="http://localhost:8787"

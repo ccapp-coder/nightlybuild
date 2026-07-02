@@ -1,0 +1,38 @@
+# Nightly Build storefront — Cloudflare Worker with static assets.
+# Auto-deploys from ccapp-coder/nightlybuild on push to main via the
+# Cloudflare Workers & Pages GitHub App. Custom domain: nightlybuild.courtrightco.com.
+# DO NOT delete or rename this file — Cloudflare's build needs it.
+
+name = "nightlybuild"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static frontend (HTML/CSS/JS). The Worker's fetch handler runs first for
+# /api/* and clean-URL routing, then falls through to these assets.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# Serve pretty URLs (/shop -> /shop.html) and send unmatched paths to the
+# Worker so it can route /p/:handle to the product template.
+html_handling = "auto-trailing-slash"
+not_found_handling = "none"
+
+# Catalog cache (normalized Printify products) + webhook idempotency keys.
+# Create with:  wrangler kv namespace create CATALOG_KV
+# then paste the returned id below (and a preview_id for `wrangler dev`).
+[[kv_namespaces]]
+binding = "CATALOG_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+# Non-secret, public config. Secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+# PRINTIFY_API_TOKEN) are set with `wrangler secret put NAME` — never here.
+[vars]
+PRINTIFY_SHOP_ID = "28049090"
+SITE_URL = "https://nightlybuild.courtrightco.com"
+# Stripe publishable key is safe to expose to the browser.
+STRIPE_PUBLISHABLE_KEY = "pk_test_REPLACE_ME"
+
+[observability]
+enabled = true
