@@ -15,8 +15,14 @@ export default {
       }
 
       // /p/:handle has no static file — serve the product template shell.
+      // Fetch the extensionless path so asset canonicalization returns 200
+      // (requesting /product.html would 307-redirect to /product).
       if (pathname === "/p" || pathname.startsWith("/p/")) {
-        return env.ASSETS.fetch(new Request(new URL("/product.html", url), request));
+        const res = await env.ASSETS.fetch(new Request(new URL("/product", url), request));
+        return new Response(res.body, {
+          status: res.status,
+          headers: res.headers,
+        });
       }
 
       // Everything else: static assets (html_handling maps /shop -> /shop.html, etc.)
@@ -47,6 +53,8 @@ async function handleApi(
       return apiSuggest(env, url);
     case "/api/config":
       return json({ publishableKey: env.STRIPE_PUBLISHABLE_KEY });
+    case "/api/session":
+      return apiSession(env, url);
     case "/api/checkout":
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
       return apiCheckout(env, request);
@@ -62,7 +70,7 @@ async function handleApi(
 async function apiCatalog(env: Env, url: URL): Promise<Response> {
   const refresh = url.searchParams.get("refresh") === "1";
   const catalog = await getCatalog(env, refresh);
-  const products = catalog.products.map(publicProduct);
+  const products = catalog.products.map((p) => publicProduct(p));
   return json(
     { updatedAt: catalog.updatedAt, count: products.length, products },
     200,
@@ -112,6 +120,27 @@ async function apiSuggest(env: Env, url: URL): Promise<Response> {
   const shuffled = seededShuffle(scored, seed).sort((a, b) => b.score - a.score);
   const picks = shuffled.slice(0, 6).map((x) => publicProduct(x.p));
   return json({ products: picks }, 200, { "Cache-Control": "public, max-age=120" });
+}
+
+// GET /api/session?id=cs_...  -> safe summary for the success page.
+async function apiSession(env: Env, url: URL): Promise<Response> {
+  const id = url.searchParams.get("id") ?? "";
+  if (!id.startsWith("cs_")) return json({ error: "bad_id" }, 400);
+  try {
+    const s = await retrieveSession(env, id);
+    const shipping = s.shipping_details ?? s.collected_information?.shipping_details;
+    return json({
+      order: {
+        total: s.amount_total ?? null,
+        currency: s.currency ?? "usd",
+        email: s.customer_details?.email ?? null,
+        shippingName: shipping?.name ?? s.customer_details?.name ?? null,
+        paid: s.payment_status === "paid",
+      },
+    });
+  } catch {
+    return json({ error: "not_found" }, 404);
+  }
 }
 
 // POST /api/checkout  { items: [{ variantId, quantity }] }
