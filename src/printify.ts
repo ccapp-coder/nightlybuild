@@ -41,9 +41,9 @@ async function buildCatalog(env: Env): Promise<Catalog> {
 async function fetchAllProducts(env: Env, shopId: string): Promise<any[]> {
   const all: any[] = [];
   let page = 1;
-  // Printify caps at 100 per_page; loop until a short page.
+  // Printify caps limit at 50; loop pages until we've read the last one.
   for (;;) {
-    const url = `${PRINTIFY_API}/shops/${shopId}/products.json?limit=100&page=${page}`;
+    const url = `${PRINTIFY_API}/shops/${shopId}/products.json?limit=50&page=${page}`;
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${env.PRINTIFY_API_TOKEN}`,
