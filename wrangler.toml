@@ -23,8 +23,8 @@ not_found_handling = "none"
 # then paste the returned id below (and a preview_id for `wrangler dev`).
 [[kv_namespaces]]
 binding = "CATALOG_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+id = "b9d8c7d35aea48c19099889dd0a6da7d"
+preview_id = "b9d8c7d35aea48c19099889dd0a6da7d"
 
 # Non-secret, public config. Secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
 # PRINTIFY_API_TOKEN) are set with `wrangler secret put NAME` — never here.
