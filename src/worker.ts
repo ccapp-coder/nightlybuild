@@ -158,23 +158,19 @@ async function apiCheckout(env: Env, request: Request): Promise<Response> {
   const catalog = await getCatalog(env);
   const lines: CheckoutLine[] = [];
   for (const item of items) {
+    const productId = String(item?.productId ?? "");
     const variantId = Number(item?.variantId);
     const quantity = Math.max(1, Math.min(20, Number(item?.quantity) || 1));
     if (!Number.isFinite(variantId)) continue;
 
-    // Find which product owns this variant.
-    let owner: NBProduct | undefined;
-    let variant;
-    for (const p of catalog.products) {
-      const v = findVariant(p, variantId);
-      if (v) {
-        owner = p;
-        variant = v;
-        break;
-      }
-    }
+    // Printify variant ids are shared across every product built on the same
+    // blueprint (all tees share ids, all hoodies share ids, etc.), so we MUST
+    // match on the specific product id the customer chose. Matching by variant
+    // id alone would grab the wrong design.
+    const owner = catalog.products.find((p) => p.id === productId);
+    const variant = owner ? findVariant(owner, variantId) : undefined;
     if (!owner || !variant || !variant.is_enabled) {
-      return json({ error: "invalid_variant", variantId }, 400);
+      return json({ error: "invalid_item", productId, variantId }, 400);
     }
 
     const namePieces = [owner.title];
@@ -193,7 +189,11 @@ async function apiCheckout(env: Env, request: Request): Promise<Response> {
   if (!lines.length) return json({ error: "no_valid_items" }, 400);
 
   const session = await createCheckoutSession(env, lines);
-  return json({ url: session.url, id: session.id });
+  return json({
+    url: session.url,
+    id: session.id,
+    lines: lines.map((l) => ({ name: l.name, unitAmount: l.unitAmount, quantity: l.quantity })),
+  });
 }
 
 // POST /api/stripe-webhook  -> verify signature, create Printify order.

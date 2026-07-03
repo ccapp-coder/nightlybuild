@@ -108,7 +108,7 @@
     api("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: items.map(function (i) { return { variantId: i.variantId, quantity: i.qty }; }) }),
+      body: JSON.stringify({ items: items.map(function (i) { return { productId: i.productId, variantId: i.variantId, quantity: i.qty }; }) }),
     })
       .then(function (res) {
         if (res.url) window.location.href = res.url;
