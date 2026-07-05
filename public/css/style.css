@@ -381,3 +381,7 @@ p { margin: 0 0 1em; color: var(--text); }
 .sheet.open { transform: translateY(0); }
 .sheet-handle { width: 44px; height: 4px; background: var(--line); border-radius: 999px; margin: 8px auto 16px; }
 .sheet h3 { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 10px; }
+
+/* header logo (top-right) */
+.header-logo { display: inline-flex; align-items: center; }
+.header-logo img { width: 36px; height: 36px; border-radius: 9px; display: block; }
