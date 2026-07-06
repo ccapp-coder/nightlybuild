@@ -385,3 +385,32 @@ p { margin: 0 0 1em; color: var(--text); }
 /* header logo (top-right) */
 .header-logo { display: inline-flex; align-items: center; }
 .header-logo img { width: 36px; height: 36px; border-radius: 9px; display: block; }
+
+
+/* ── NB MOTION (appended) ── */
+.card { transition: border-color .25s ease, box-shadow .3s ease, transform .3s ease; }
+.card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 14px 34px rgba(60,207,94,.16); }
+.card-media { overflow: hidden; }
+.card-media img { transition: transform .45s ease; }
+.card:hover .card-media img { transform: scale(1.05); }
+
+.btn { position: relative; overflow: hidden; }
+.btn::after { content:""; position:absolute; top:0; left:-130%; width:55%; height:100%;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
+  transform:skewX(-20deg); transition:left .6s ease; pointer-events:none; }
+.btn:hover::after { left:170%; }
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { animation: nbGlow 3s ease-in-out infinite; }
+@keyframes nbGlow { 0%,100%{ box-shadow:0 0 0 rgba(60,207,94,0); } 50%{ box-shadow:0 0 20px rgba(60,207,94,.4); } }
+
+.hero .wordmark { animation: nbWordGlow 5s ease-in-out infinite; }
+@keyframes nbWordGlow { 0%,100%{ text-shadow:0 0 20px rgba(60,207,94,0); } 50%{ text-shadow:0 0 26px rgba(60,207,94,.22); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card:hover { transform:none; }
+  .card:hover .card-media img { transform:none; }
+  .btn::after { display:none; }
+  .btn:hover { transform:none; }
+  .btn-primary { animation:none; }
+  .hero .wordmark { animation:none; }
+}
