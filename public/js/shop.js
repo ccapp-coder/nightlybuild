@@ -1,22 +1,22 @@
-/* Shop page: filters (type, color, drop), sort, and load-more. */
+/* Shop page: grouped Drop sections + filters (type, color, drop) + sort. */
 (function () {
   "use strict";
   var grid = document.querySelector("[data-grid]");
   var filtersHost = document.getElementById("filters");
   var countEl = document.querySelector("[data-count]");
   var loadMoreBtn = document.querySelector("[data-loadmore]");
-  var PAGE = 12;
+
+  var DROP_ORDER = ["Drop 03", "Drop 02", "Drop 01", "Originals"];
 
   var all = [];
   var view = [];
-  var shown = 0;
   var state = { type: "", color: "", drop: "", sort: "newest" };
 
   grid.innerHTML = NB.skeletonCards(8);
 
   NB.getCatalog()
     .then(function (products) {
-      all = products.map(function (p, idx) { return Object.assign({ _i: idx }, p); }); // _i = catalog order (newest-ish)
+      all = products.map(function (p, idx) { return Object.assign({ _i: idx }, p); });
       buildFilters(all);
       applyURL();
       apply();
@@ -27,15 +27,21 @@
 
   function uniq(list) { return list.filter(function (v, i) { return v && list.indexOf(v) === i; }); }
 
+  function dropRank(d) {
+    var i = DROP_ORDER.indexOf(d);
+    return i < 0 ? DROP_ORDER.length + (d ? 0 : 1) : i;
+  }
+
   function buildFilters(products) {
     var types = uniq(products.map(function (p) { return p.productType; }));
     var colors = uniq([].concat.apply([], products.map(function (p) { return p.colors.map(function (c) { return c.name; }); })));
-    var drops = uniq(products.map(function (p) { return p.drop; }).filter(Boolean));
+    var drops = uniq(products.map(function (p) { return p.drop; }).filter(Boolean))
+      .sort(function (a, b) { return dropRank(a) - dropRank(b); });
 
     filtersHost.innerHTML =
+      (drops.length ? selectHtml("drop", "All drops", drops) : "") +
       selectHtml("type", "All products", types) +
       selectHtml("color", "All colors", colors) +
-      (drops.length ? selectHtml("drop", "All drops", drops) : "") +
       '<select class="select" data-f="sort" aria-label="Sort">' +
         '<option value="newest">Newest</option>' +
         '<option value="price-asc">Price: low to high</option>' +
@@ -45,7 +51,6 @@
     filtersHost.querySelectorAll("[data-f]").forEach(function (sel) {
       sel.addEventListener("change", function () {
         state[sel.getAttribute("data-f")] = sel.value;
-        shown = 0;
         syncURL();
         apply();
       });
@@ -72,25 +77,29 @@
     else if (state.sort === "price-desc") view.sort(function (a, b) { return b.priceMin - a.priceMin; });
     else view.sort(function (a, b) { return a._i - b._i; });
 
-    // reflect selects
     filtersHost.querySelectorAll("[data-f]").forEach(function (sel) { sel.value = state[sel.getAttribute("data-f")]; });
-
-    shown = 0;
-    grid.innerHTML = "";
     render();
   }
 
   function render() {
-    var next = view.slice(shown, shown + PAGE);
-    grid.insertAdjacentHTML("beforeend", next.map(NB.cardHtml).join("") || (shown === 0 ? '<p class="muted">Nothing matches those filters.</p>' : ""));
-    shown += next.length;
+    var groups = {};
+    view.forEach(function (p) { var d = p.drop || "More"; (groups[d] = groups[d] || []).push(p); });
+    var keys = Object.keys(groups).sort(function (a, b) { return dropRank(a) - dropRank(b); });
+
+    grid.className = "shop-groups";
+    grid.style.display = "block";
+    grid.innerHTML = keys.map(function (k) {
+      var items = groups[k];
+      var head = '<div class="drop-head"><h2 class="mono">' + NB.esc(k) + "</h2>" +
+        '<span class="muted mono">' + items.length + " item" + (items.length === 1 ? "" : "s") + "</span></div>";
+      return '<section class="drop-section">' + head +
+        '<div class="grid">' + items.map(NB.cardHtml).join("") + "</div></section>";
+    }).join("") || '<p class="muted">Nothing matches those filters.</p>';
+
     if (countEl) countEl.textContent = view.length + " item" + (view.length === 1 ? "" : "s");
-    if (loadMoreBtn) loadMoreBtn.style.display = shown < view.length ? "" : "none";
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
   }
 
-  if (loadMoreBtn) loadMoreBtn.addEventListener("click", render);
-
-  // --- URL sync (shareable filtered views) ---
   function syncURL() {
     var q = new URLSearchParams();
     Object.keys(state).forEach(function (k) { if (state[k] && state[k] !== "newest") q.set(k, state[k]); });
@@ -102,21 +111,15 @@
     ["type", "color", "drop", "sort"].forEach(function (k) { if (q.get(k)) state[k] = q.get(k); });
   }
 
-  // --- Mobile bottom-sheet ---
   var openBtn = document.querySelector("[data-open-filters]");
   var sheet = document.querySelector("[data-sheet]");
   var sheetBackdrop = document.querySelector("[data-sheet-backdrop]");
   var sheetBody = sheet && sheet.querySelector("[data-sheet-body]");
   var home = filtersHost.parentNode;
 
-  function openSheet() {
-    sheetBody.appendChild(filtersHost);
-    sheetBackdrop.classList.add("open");
-    sheet.classList.add("open");
-  }
+  function openSheet() { sheetBody.appendChild(filtersHost); sheetBackdrop.classList.add("open"); sheet.classList.add("open"); }
   function closeSheet() {
-    sheet.classList.remove("open");
-    sheetBackdrop.classList.remove("open");
+    sheet.classList.remove("open"); sheetBackdrop.classList.remove("open");
     setTimeout(function () { home.insertBefore(filtersHost, home.firstChild); }, 240);
   }
   if (openBtn) openBtn.addEventListener("click", openSheet);
