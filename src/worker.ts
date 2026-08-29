@@ -14,15 +14,24 @@ export default {
         return await handleApi(pathname, request, env, ctx, url);
       }
 
-      // /p/:handle has no static file — serve the product template shell.
-      // Fetch the extensionless path so asset canonicalization returns 200
-      // (requesting /product.html would 307-redirect to /product).
+      // /p/:handle has no static file — serve the product template shell with
+      // this product's metadata written into the head.
+      //
+      // It used to serve the bare template for ANY /p/* path, which meant every
+      // product URL returned byte-identical HTML: the same "nightly build"
+      // title, the same generic description, no canonical, and a 200 even for
+      // slugs that do not exist. To a crawler that is one page duplicated across
+      // unlimited URLs, so nothing on this store could rank on its own terms.
       if (pathname === "/p" || pathname.startsWith("/p/")) {
-        const res = await env.ASSETS.fetch(new Request(new URL("/product", url), request));
-        return new Response(res.body, {
-          status: res.status,
-          headers: res.headers,
-        });
+        return await serveProductPage(pathname, request, env, url);
+      }
+
+      // Generated here rather than served from public/sitemap.xml, which listed
+      // six static pages and not one product. The shop grid is rendered
+      // client-side, so there was no crawlable path to any product at all: not
+      // from the sitemap, not from /shop. This is the only discovery route.
+      if (pathname === "/sitemap.xml") {
+        return await serveSitemap(env);
       }
 
       // Everything else: static assets (html_handling maps /shop -> /shop.html, etc.)
@@ -36,6 +45,193 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+const SITE_ORIGIN = "https://nightlybuild.courtrightco.com";
+
+/** Escapes for an HTML attribute value or text node. */
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Google renders ~155 characters of a description; cut on a word boundary. */
+function clamp(s: string, max = 155): string {
+  const flat = s.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max - 1);
+  return cut.slice(0, cut.lastIndexOf(" ")).trimEnd() + "…";
+}
+
+function money(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+/**
+ * A product page with its own title, description, canonical, card and Product
+ * schema, streamed through HTMLRewriter over the shared template.
+ *
+ * An unknown handle gets a real 404. Returning 200 for every string after /p/
+ * is what let this store present unlimited near-identical pages, which spends
+ * crawl budget and invites Google to collapse or drop the real ones.
+ */
+async function serveProductPage(
+  pathname: string,
+  request: Request,
+  env: Env,
+  url: URL
+): Promise<Response> {
+  const handle = decodeURIComponent(pathname.slice("/p/".length)).replace(/\/+$/, "");
+
+  let product: NBProduct | undefined;
+  if (handle) {
+    // A catalog fetch that fails must not turn a real product page into a 404 —
+    // that would deindex the whole store on one bad upstream response. Fall
+    // through to the unmodified template instead: stale metadata beats a lie
+    // about the page not existing.
+    try {
+      const catalog = await getCatalog(env);
+      product = findProduct(catalog, handle);
+    } catch (err: any) {
+      console.error("catalog lookup failed for", handle, err?.message ?? err);
+      const res = await env.ASSETS.fetch(new Request(new URL("/product", url), request));
+      return new Response(res.body, { status: res.status, headers: res.headers });
+    }
+  }
+
+  if (!product) return notFoundPage(handle);
+
+  const canonical = `${SITE_ORIGIN}/p/${encodeURIComponent(product.handle)}`;
+  const title = `${product.title} — nightly build`;
+  const description = clamp(
+    product.description || `${product.productType} from Nightly Build, printed on demand.`
+  );
+  const image = product.images[0] ?? `${SITE_ORIGIN}/img/og.png`;
+
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.title,
+    description,
+    image: product.images.length ? product.images : [`${SITE_ORIGIN}/img/og.png`],
+    sku: product.handle,
+    brand: { "@type": "Brand", name: "Nightly Build" },
+    offers: {
+      // AggregateOffer because a product has size and colour variants spanning
+      // a price range; a single Offer would have to invent one price.
+      "@type": "AggregateOffer",
+      url: canonical,
+      priceCurrency: "USD",
+      lowPrice: money(product.priceMin),
+      highPrice: money(product.priceMax),
+      offerCount: product.variants.length,
+      availability: "https://schema.org/InStock",
+    },
+  };
+
+  const res = await env.ASSETS.fetch(new Request(new URL("/product", url), request));
+  if (!res.ok) return new Response(res.body, { status: res.status, headers: res.headers });
+
+  const rewritten = new HTMLRewriter()
+    .on("title", {
+      element(el) {
+        el.setInnerContent(title);
+      },
+    })
+    .on('meta[name="description"]', {
+      element(el) {
+        el.setAttribute("content", description);
+      },
+    })
+    .on('meta[property="og:image"]', {
+      element(el) {
+        el.setAttribute("content", image);
+      },
+    })
+    .on("head", {
+      element(el) {
+        el.append(
+          `<link rel="canonical" href="${esc(canonical)}">` +
+            `<meta property="og:title" content="${esc(product!.title)}">` +
+            `<meta property="og:description" content="${esc(description)}">` +
+            `<meta property="og:url" content="${esc(canonical)}">` +
+            `<meta name="twitter:title" content="${esc(product!.title)}">` +
+            `<meta name="twitter:description" content="${esc(description)}">` +
+            `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, "\\u003c")}</script>`,
+          { html: true }
+        );
+      },
+    })
+    .transform(res);
+
+  const headers = new Headers(rewritten.headers);
+  headers.set("Cache-Control", "public, max-age=120");
+  return new Response(rewritten.body, { status: 200, headers });
+}
+
+/** Static pages worth crawling. /cart and /success are excluded by robots.txt. */
+const SITEMAP_STATIC = ["/", "/shop", "/about", "/contact", "/privacy", "/terms"];
+
+/** sitemap.xml: the static pages plus every real product URL. */
+async function serveSitemap(env: Env): Promise<Response> {
+  let handles: string[] = [];
+  try {
+    const catalog = await getCatalog(env);
+    handles = catalog.products.map((p) => p.handle);
+  } catch (err: any) {
+    // Serve the static pages rather than a 500. A sitemap that errors teaches a
+    // crawler the endpoint is unreliable and gets it fetched less often.
+    console.error("sitemap catalog lookup failed:", err?.message ?? err);
+  }
+
+  const urls = [
+    ...SITEMAP_STATIC.map((p) => `${SITE_ORIGIN}${p}`),
+    ...handles.map((h) => `${SITE_ORIGIN}/p/${encodeURIComponent(h)}`),
+  ];
+
+  const xml =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.map((u) => `  <url><loc>${esc(u)}</loc></url>\n`).join("") +
+    `</urlset>\n`;
+
+  return new Response(xml, {
+    headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "public, max-age=600",
+    },
+  });
+}
+
+/** 404 for a slug with no product, marked noindex so a stray link cannot index it. */
+function notFoundPage(handle: string): Response {
+  const body = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Not found — nightly build</title>
+<meta name="description" content="This drop does not exist.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body style="margin:0;background:#0b0d10;color:#edebe4;font-family:system-ui,sans-serif">
+<main style="max-width:44rem;margin:0 auto;padding:6rem 1.5rem">
+<h1 style="font-size:1.6rem;margin:0 0 .75rem">No drop at this address.</h1>
+<p style="opacity:.75;margin:0 0 1.75rem">${handle ? `Nothing is published under &ldquo;${esc(handle)}&rdquo;.` : "That link is missing a product."}</p>
+<a href="/shop" style="color:#edebe4">Browse the shop &rarr;</a>
+</main>
+</body>
+</html>`;
+  return new Response(body, {
+    status: 404,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
 
 async function handleApi(
   pathname: string,
