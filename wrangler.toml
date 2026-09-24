@@ -36,6 +36,8 @@ preview_id = "b9d8c7d35aea48c19099889dd0a6da7d"
 [vars]
 PRINTIFY_SHOP_ID = "28049090"
 SITE_URL = "https://nightlybuild.courtrightco.com"
+# "on" = Stripe Tax adds sales tax at checkout (needs registrations in the Stripe dashboard).
+STRIPE_TAX = "on"
 # Stripe publishable key is safe to expose to the browser.
 STRIPE_PUBLISHABLE_KEY = "pk_test_REPLACE_ME"
 

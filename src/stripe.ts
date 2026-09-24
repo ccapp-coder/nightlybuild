@@ -1,7 +1,11 @@
-// Minimal Stripe REST helpers (no SDK) for Workers.
+// Stripe Checkout (hosted) with real shipping and Stripe Tax, plus webhook verification.
 import type { Env } from "./types";
 
 const STRIPE_API = "https://api.stripe.com/v1";
+
+/** Tags our sessions. The Stripe account is shared with other stores (Butts and Guts,
+ *  TinkerTaps), so the webhook only fulfils sessions carrying this. */
+export const STORE_TAG = "nightlybuild";
 
 export interface CheckoutLine {
   productId: string;
@@ -9,13 +13,14 @@ export interface CheckoutLine {
   quantity: number;
   unitAmount: number; // cents, server-trusted
   name: string;
-  image?: string | null;
+  image: string | null;
+  taxCode: string;
 }
 
-// Create a Stripe Checkout Session and return its hosted URL.
 export async function createCheckoutSession(
   env: Env,
-  lines: CheckoutLine[]
+  lines: CheckoutLine[],
+  shipping: { country: string; amount: number }
 ): Promise<{ id: string; url: string }> {
   const form = new URLSearchParams();
   form.set("mode", "payment");
@@ -24,25 +29,41 @@ export async function createCheckoutSession(
   form.set("billing_address_collection", "auto");
   form.set("phone_number_collection[enabled]", "true");
 
-  // Ship to US + common English-speaking markets. Adjust as fulfillment allows.
-  for (const c of ["US", "CA", "GB", "AU", "NZ", "IE"]) {
-    form.append("shipping_address_collection[allowed_countries][]", c);
-  }
+  // Ship only to the country the shipping was quoted for.
+  form.append("shipping_address_collection[allowed_countries][]", shipping.country);
 
   lines.forEach((line, i) => {
     form.set(`line_items[${i}][quantity]`, String(line.quantity));
     form.set(`line_items[${i}][price_data][currency]`, "usd");
     form.set(`line_items[${i}][price_data][unit_amount]`, String(line.unitAmount));
+    form.set(`line_items[${i}][price_data][tax_behavior]`, "exclusive");
     form.set(`line_items[${i}][price_data][product_data][name]`, line.name);
+    form.set(`line_items[${i}][price_data][product_data][tax_code]`, line.taxCode);
     if (line.image) {
       form.set(`line_items[${i}][price_data][product_data][images][0]`, line.image);
     }
   });
 
+  // Shipping at Printify's real cost for this cart and country.
+  const us = shipping.country === "US";
+  form.set("shipping_options[0][shipping_rate_data][type]", "fixed_amount");
+  form.set("shipping_options[0][shipping_rate_data][display_name]", "Standard shipping");
+  form.set("shipping_options[0][shipping_rate_data][fixed_amount][amount]", String(shipping.amount));
+  form.set("shipping_options[0][shipping_rate_data][fixed_amount][currency]", "usd");
+  form.set("shipping_options[0][shipping_rate_data][tax_behavior]", "exclusive");
+  form.set("shipping_options[0][shipping_rate_data][tax_code]", "txcd_92010001");
+  form.set("shipping_options[0][shipping_rate_data][delivery_estimate][minimum][unit]", "business_day");
+  form.set("shipping_options[0][shipping_rate_data][delivery_estimate][minimum][value]", us ? "5" : "7");
+  form.set("shipping_options[0][shipping_rate_data][delivery_estimate][maximum][unit]", "business_day");
+  form.set("shipping_options[0][shipping_rate_data][delivery_estimate][maximum][value]", us ? "10" : "20");
+
+  if (env.STRIPE_TAX === "on") form.set("automatic_tax[enabled]", "true");
+
   // Compact cart snapshot for fulfillment: [[productId, variantId, qty], ...]
-  // Kept under Stripe's 500-char metadata limit for typical carts.
   const cart = lines.map((l) => [l.productId, l.variantId, l.quantity]);
   form.set("metadata[cart]", JSON.stringify(cart).slice(0, 490));
+  form.set("metadata[store]", STORE_TAG);
+  form.set("payment_intent_data[metadata][store]", STORE_TAG);
 
   const res = await fetch(`${STRIPE_API}/checkout/sessions`, {
     method: "POST",

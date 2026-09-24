@@ -1,7 +1,8 @@
 // Nightly Build storefront Worker: static assets + /api/* (Printify + Stripe).
 import type { Env, NBProduct } from "./types";
 import { getCatalog, findProduct, findVariant } from "./printify";
-import { createCheckoutSession, verifyWebhook, retrieveSession, type CheckoutLine } from "./stripe";
+import { createCheckoutSession, verifyWebhook, retrieveSession, STORE_TAG, type CheckoutLine } from "./stripe";
+import { shippingCents, shipCountry, type ShipLine } from "./shipping";
 import { fulfillOrder } from "./fulfillment";
 
 export default {
@@ -251,6 +252,9 @@ async function handleApi(
       return json({ publishableKey: env.STRIPE_PUBLISHABLE_KEY });
     case "/api/session":
       return apiSession(env, url);
+    case "/api/quote":
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+      return apiQuote(env, request);
     case "/api/checkout":
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
       return apiCheckout(env, request);
@@ -324,6 +328,7 @@ async function apiSession(env: Env, url: URL): Promise<Response> {
   if (!id.startsWith("cs_")) return json({ error: "bad_id" }, 400);
   try {
     const s = await retrieveSession(env, id);
+    if (s?.metadata?.store && s.metadata.store !== STORE_TAG) return json({ error: "not_found" }, 404);
     const shipping = s.shipping_details ?? s.collected_information?.shipping_details;
     return json({
       order: {
@@ -339,20 +344,12 @@ async function apiSession(env: Env, url: URL): Promise<Response> {
   }
 }
 
-// POST /api/checkout  { items: [{ variantId, quantity }] }
-async function apiCheckout(env: Env, request: Request): Promise<Response> {
-  let payload: any;
-  try {
-    payload = await request.json();
-  } catch {
-    return json({ error: "bad_json" }, 400);
-  }
-  const items: any[] = Array.isArray(payload?.items) ? payload.items : [];
-  if (!items.length) return json({ error: "empty_cart" }, 400);
-
-  // Always re-price from the live catalog — never trust client prices.
+/** Re-price a browser cart from the live catalog. Throws a user-safe message. */
+async function resolveLines(env: Env, items: any[]): Promise<{ lines: CheckoutLine[]; ship: ShipLine[] }> {
+  if (!Array.isArray(items) || !items.length) throw new Error("empty_cart");
   const catalog = await getCatalog(env);
   const lines: CheckoutLine[] = [];
+  const ship: ShipLine[] = [];
   for (const item of items) {
     const productId = String(item?.productId ?? "");
     const variantId = Number(item?.variantId);
@@ -360,14 +357,10 @@ async function apiCheckout(env: Env, request: Request): Promise<Response> {
     if (!Number.isFinite(variantId)) continue;
 
     // Printify variant ids are shared across every product built on the same
-    // blueprint (all tees share ids, all hoodies share ids, etc.), so we MUST
-    // match on the specific product id the customer chose. Matching by variant
-    // id alone would grab the wrong design.
+    // blueprint, so we MUST match on the specific product id the customer chose.
     const owner = catalog.products.find((p) => p.id === productId);
     const variant = owner ? findVariant(owner, variantId) : undefined;
-    if (!owner || !variant || !variant.is_enabled) {
-      return json({ error: "invalid_item", productId, variantId }, 400);
-    }
+    if (!owner || !variant || !variant.is_enabled) throw new Error("invalid_item");
 
     const namePieces = [owner.title];
     if (variant.color) namePieces.push(variant.color);
@@ -379,16 +372,56 @@ async function apiCheckout(env: Env, request: Request): Promise<Response> {
       unitAmount: variant.price, // server-trusted cents
       name: namePieces.join(" · "),
       image: variant.image ?? owner.images[0] ?? null,
+      taxCode: owner.productType === "Tee" || owner.productType === "Hoodie" ? "txcd_30011000" : "txcd_99999999",
     });
+    ship.push({ product: owner, variantId, quantity });
+  }
+  if (!lines.length) throw new Error("no_valid_items");
+  return { lines, ship };
+}
+
+// POST /api/quote  { items, country } -> { subtotal, shipping, total, country } (USD cents)
+async function apiQuote(env: Env, request: Request): Promise<Response> {
+  let payload: any;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "bad_json" }, 400);
+  }
+  const country = shipCountry(payload?.country, request);
+  try {
+    const { lines, ship } = await resolveLines(env, payload?.items);
+    const subtotal = lines.reduce((n, l) => n + l.unitAmount * l.quantity, 0);
+    const shipping = await shippingCents(env, ship, country);
+    return json({ country, subtotal, shipping, total: subtotal + shipping }, 200, { "Cache-Control": "no-store" });
+  } catch (err: any) {
+    return json({ error: String(err?.message ?? "quote_failed") }, 400);
+  }
+}
+
+// POST /api/checkout  { items: [{ productId, variantId, quantity }], country }
+async function apiCheckout(env: Env, request: Request): Promise<Response> {
+  let payload: any;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "bad_json" }, 400);
+  }
+  const country = shipCountry(payload?.country, request);
+  let resolved: { lines: CheckoutLine[]; ship: ShipLine[] };
+  let shipping: number;
+  try {
+    resolved = await resolveLines(env, payload?.items);
+    shipping = await shippingCents(env, resolved.ship, country);
+  } catch (err: any) {
+    return json({ error: String(err?.message ?? "checkout_failed") }, 400);
   }
 
-  if (!lines.length) return json({ error: "no_valid_items" }, 400);
-
-  const session = await createCheckoutSession(env, lines);
+  const session = await createCheckoutSession(env, resolved.lines, { country, amount: shipping });
   return json({
     url: session.url,
     id: session.id,
-    lines: lines.map((l) => ({ name: l.name, unitAmount: l.unitAmount, quantity: l.quantity })),
+    lines: resolved.lines.map((l) => ({ name: l.name, unitAmount: l.unitAmount, quantity: l.quantity })),
   });
 }
 
@@ -401,6 +434,10 @@ async function apiWebhook(env: Env, ctx: ExecutionContext, request: Request): Pr
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
+    // The Stripe account is shared with other stores. Sessions from before the store tag
+    // existed carry only metadata.cart, so accept an untagged session but never another store's.
+    const store = session?.metadata?.store;
+    if (store && store !== STORE_TAG) return json({ ignored: "other_store" });
     // Ensure we have full shipping details before fulfilling.
     ctx.waitUntil(
       (async () => {

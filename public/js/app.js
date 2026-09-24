@@ -108,7 +108,10 @@
     api("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: items.map(function (i) { return { productId: i.productId, variantId: i.variantId, quantity: i.qty }; }) }),
+      body: JSON.stringify({
+        country: shipCountry(),
+        items: items.map(function (i) { return { productId: i.productId, variantId: i.variantId, quantity: i.qty }; }),
+      }),
     })
       .then(function (res) {
         if (res.url) window.location.href = res.url;
@@ -116,9 +119,18 @@
       })
       .catch(function (err) {
         if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || "Checkout"; }
-        toast("Checkout hiccup. Try again.", true);
+        toast(err && err.body && err.body.error === "no_shipping" ? "We can't ship that cart to that country yet." : "Checkout hiccup. Try again.", true);
         console.error(err);
       });
+  }
+
+  // ---------- ship-to country (drives the shipping quote + what Stripe allows) ----------
+  var SHIP_KEY = "nb_ship_country";
+  function shipCountry() {
+    try { return localStorage.getItem(SHIP_KEY) || ""; } catch (e) { return ""; }
+  }
+  function setShipCountry(c) {
+    try { localStorage.setItem(SHIP_KEY, c); } catch (e) {}
   }
 
   // ---------- chrome: header count, drawer, mobile bar, toast ----------
@@ -186,11 +198,9 @@
     body.innerHTML = items.map(lineHtml).join("");
     foot.innerHTML =
       '<div class="subtotal-row"><span class="muted">Subtotal</span><span class="price">' + money(subtotal()) + "</span></div>" +
-      '<p class="ship-microcopy">Shipped while you slept. Taxes &amp; shipping shown at checkout.</p>' +
-      '<button class="btn btn-primary btn-block" data-checkout>Checkout</button>' +
-      '<a class="btn btn-ghost btn-block" href="/cart" style="margin-top:8px">View full cart</a>';
+      '<p class="ship-microcopy">Shipped while you slept. Shipping &amp; tax calculated in your cart.</p>' +
+      '<a class="btn btn-primary btn-block" href="/cart">Review cart &amp; checkout</a>';
     wireLineControls(body);
-    foot.querySelector("[data-checkout]").addEventListener("click", function () { checkout(this); });
   }
 
   function lineHtml(i) {
@@ -276,6 +286,8 @@
       clear: clear,
       checkout: checkout,
       onChange: onChange,
+      shipCountry: shipCountry,
+      setShipCountry: setShipCountry,
       openDrawer: openDrawer,
     },
     toast: toast,

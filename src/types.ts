@@ -13,6 +13,8 @@ export interface Env {
   PRINTIFY_SHOP_ID: string;
   STRIPE_PUBLISHABLE_KEY: string;
   SITE_URL: string;
+  /** "on" = Stripe Tax calculates sales tax at checkout. */
+  STRIPE_TAX: string;
 }
 
 // ---- Normalized catalog shapes (what the frontend consumes) ----
