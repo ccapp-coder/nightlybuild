@@ -4,7 +4,7 @@
   var box = document.querySelector("[data-order]");
   var sid = new URLSearchParams(location.search).get("session_id");
 
-  // Payment came back — the cart has done its job.
+  // Payment came back, so the cart has done its job.
   try { NB.cart.clear(); } catch (e) {}
 
   if (!box) return;
