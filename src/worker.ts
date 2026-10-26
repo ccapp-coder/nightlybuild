@@ -15,7 +15,7 @@ export default {
         return await handleApi(pathname, request, env, ctx, url);
       }
 
-      // /p/:handle has no static file — serve the product template shell with
+      // /p/:handle has no static file, so serve the product template shell with
       // this product's metadata written into the head.
       //
       // It used to serve the bare template for ANY /p/* path, which meant every
@@ -89,7 +89,7 @@ async function serveProductPage(
 
   let product: NBProduct | undefined;
   if (handle) {
-    // A catalog fetch that fails must not turn a real product page into a 404 —
+    // A catalog fetch that fails must not turn a real product page into a 404:
     // that would deindex the whole store on one bad upstream response. Fall
     // through to the unmodified template instead: stale metadata beats a lie
     // about the page not existing.
@@ -106,7 +106,7 @@ async function serveProductPage(
   if (!product) return notFoundPage(handle);
 
   const canonical = `${SITE_ORIGIN}/p/${encodeURIComponent(product.handle)}`;
-  const title = `${product.title} — nightly build`;
+  const title = `${product.title} | nightly build`;
   const description = clamp(
     product.description || `${product.productType} from Nightly Build, printed on demand.`
   );
@@ -215,7 +215,7 @@ function notFoundPage(handle: string): Response {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Not found — nightly build</title>
+<title>Not found | nightly build</title>
 <meta name="description" content="This drop does not exist.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/style.css">

@@ -1,4 +1,4 @@
-/* Nightly Build — shared client core: catalog fetch, cart, drawer, toast.
+/* Nightly Build: shared client core: catalog fetch, cart, drawer, toast.
    Vanilla JS, no deps. Loaded on every page. */
 (function () {
   "use strict";

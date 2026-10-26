@@ -86,7 +86,7 @@ products with **enabled** variants (drafts are fine, we read them via API).
    any future expiry, any CVC, any ZIP.
 4. On `checkout.session.completed`, the Worker creates a **Printify order** in shop 28049090
    (visible under Orders). If the shop's order approval is **Manual**, the order waits for
-   your approval — we intentionally do not auto-submit it to production.
+   your approval; we intentionally do not auto-submit it to production.
 
 ---
 
@@ -111,7 +111,7 @@ the **Cloudflare Workers & Pages GitHub App**:
 
 - Push to `main` → Cloudflare builds and deploys within ~30–60 seconds.
 - Custom domain `nightlybuild.courtrightco.com` is attached to the `nightlybuild` Worker.
-- **Do not delete or rename `wrangler.toml`** — the Cloudflare build needs it.
+- **Do not delete or rename `wrangler.toml`**: the Cloudflare build needs it.
 - If pushes stop triggering builds, check the GitHub App's repo access
   (github.com/settings/installations) and confirm `nightlybuild` is in the list.
 

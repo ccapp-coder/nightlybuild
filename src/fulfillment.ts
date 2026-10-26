@@ -25,7 +25,7 @@ export async function fulfillOrder(env: Env, session: any): Promise<void> {
   const address = extractAddress(session);
   if (!address) {
     console.error(`Missing shipping address on session ${sessionId}; cannot create Printify order.`);
-    return; // do NOT mark done — allow a manual retry
+    return; // do NOT mark done, allow a manual retry
   }
 
   const line_items = cart.map(([productId, variantId, quantity]) => ({
@@ -56,7 +56,7 @@ export async function fulfillOrder(env: Env, session: any): Promise<void> {
 
   const text = await res.text();
   if (!res.ok) {
-    // 400 with "external_id already exists" means another retry beat us — treat as done.
+    // 400 with "external_id already exists" means another retry beat us, so treat as done.
     if (res.status === 400 && /external_id/i.test(text) && /exist/i.test(text)) {
       await env.CATALOG_KV.put(idemKey, "dup", { expirationTtl: 60 * 60 * 24 * 30 });
       return;

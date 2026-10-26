@@ -1,14 +1,14 @@
-# Nightly Build storefront — Cloudflare Worker with static assets.
+# Nightly Build storefront: Cloudflare Worker with static assets.
 # Auto-deploys from ccapp-coder/nightlybuild on push to main via the
 # Cloudflare Workers & Pages GitHub App. Custom domain: nightlybuild.courtrightco.com.
-# DO NOT delete or rename this file — Cloudflare's build needs it.
+# DO NOT delete or rename this file. Cloudflare's build needs it.
 
 name = "nightlybuild"
 main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Custom domain — Cloudflare provisions the DNS record + SSL cert on deploy.
+# Custom domain: Cloudflare provisions the DNS record + SSL cert on deploy.
 routes = [
   { pattern = "nightlybuild.courtrightco.com", custom_domain = true }
 ]
@@ -32,7 +32,7 @@ id = "b9d8c7d35aea48c19099889dd0a6da7d"
 preview_id = "b9d8c7d35aea48c19099889dd0a6da7d"
 
 # Non-secret, public config. Secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-# PRINTIFY_API_TOKEN) are set with `wrangler secret put NAME` — never here.
+# PRINTIFY_API_TOKEN) are set with `wrangler secret put NAME`, never here.
 [vars]
 PRINTIFY_SHOP_ID = "28049090"
 SITE_URL = "https://nightlybuild.courtrightco.com"
